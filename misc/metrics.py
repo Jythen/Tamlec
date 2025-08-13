@@ -228,3 +228,17 @@ def ndcg_k(predictions, labels, k):
     ndcgs = dcg/normalization
 
     return np.mean(ndcgs)
+
+
+def ndcg_k_hector(predicted_labels, true_labels, k):
+    weights = 1/np.log2 (np.arange(2,2+k))
+    normalization = np.sum(weights)
+
+    preds = predicted_labels[:k]
+    trues = true_labels
+
+    result = np.array([ 1 if p in trues else 0 for p in preds ])
+    dcg = np.sum(result*weights)
+    ndcg = dcg/normalization
+
+    return ndcg

@@ -5,7 +5,7 @@ from tqdm import tqdm
 import time
 
 from Tamlec.tamlec import Tamlec
-from Tamlec.prediction_handler import CustomXMLHolder, CustomXMLHolderGlobal
+from Tamlec.prediction_handler import CustomXMLHolder
 from datahandler.dataloading import load_data
 from misc import metrics, utils
 
@@ -373,172 +373,122 @@ class TamlecExp:
 
     @torch.no_grad()
     def final_evaluation(self, split, metrics_handler, save_pred, eval_finetuning):
+        # Initialize all storages
+        all_predictions = []
+        all_complete_labels = []
+        all_relevant_classes = []
+        all_metrics = {}
+        n_docs_per_task = {}
+
         # Set model to eval() modifies the behavior of certain layers e.g. dropout, normalization layers
         self.model.eval()
 
-        # 1. Global evaluation
-        # Aggregate all data
-        input_data = []
-        labels = []
-        all_relevant_labels = None
-        task_id_list = []
-        for batched_input, batched_labels, column_indices in self.dataloaders[f"global_{split}"]:
-            input_data.append(torch.vstack(batched_input))
-            all_relevant_labels = column_indices
-            for document_labels in batched_labels:
-                labels.append(document_labels)
-                # All tasks in which the document appears
-                tasks_set = set()
-                for lab in document_labels:
-                    # Main root does not belong to any task, skip it
-                    if lab == 0: continue
-                    tasks_set = tasks_set.union(self.cfg['label_to_tasks'][lab])
-                task_id_list.append(list(tasks_set))
-        input_data = torch.vstack(input_data)
-
-        # Compute predictions
-        print(f"> Computing global predictions...")
-        xml = CustomXMLHolderGlobal(text_batch=input_data, task_id_list=task_id_list, beam_parameter=10, tamlec=self.model, proba_operator="MAX_PROBA")
-        predictions, scores = xml.run_predictions(batch_size=256)
-
-        # Transform predictions and labels into one-hot encoding
-        all_predictions = []
-        all_complete_labels = []
-        for pred, score, label in zip(tqdm(predictions), scores, labels):
-            assert len(pred) == len(score)
-            pred = torch.tensor(pred)
-            score = torch.tensor(score)
-            label = torch.tensor(label)
-            # +1 as we have a <PAD> token for the labels
-            pred_sample = torch.zeros(self.cfg['taxonomy'].n_nodes+1, dtype=torch.float64)
-            pred_sample.scatter_(dim=0, index=pred, src=score)
-            assert pred_sample[-1] == 0.
-            all_predictions.append(pred_sample)
-            # +1 as we have a <PAD> token for the labels
-            label_sample = torch.zeros(self.cfg['taxonomy'].n_nodes+1, dtype=torch.float64)
-            label_sample.scatter_(0, label, 1.)
-            assert label_sample[-1] == 0.
-            all_complete_labels.append(label_sample)
-
-        # Aggregate predictions and labels
-        all_predictions = torch.stack(all_predictions, dim=0)
-        all_complete_labels = torch.stack(all_complete_labels, dim=0)
-
-        # Save predictions and labels
-        if save_pred:
-            torch.save(all_relevant_labels, self.cfg['paths'][f"{split}_relevant_labels"])
-            if eval_finetuning:
-                torch.save(all_predictions, self.cfg['paths'][f"{split}_predictions_finetuned"])
-                torch.save(all_complete_labels.bool(), self.cfg['paths'][f"{split}_labels_finetuned"])
-            else:
-                torch.save(all_predictions, self.cfg['paths'][f"{split}_predictions"])
-                torch.save(all_complete_labels.bool(), self.cfg['paths'][f"{split}_labels"])
-
-        # Filter predictions and labels
-        filtered_predictions = all_predictions[:, all_relevant_labels]
-        filtered_labels = all_complete_labels[:, all_relevant_labels]
-
-        # Compute metrics
-        metrics_global, _n_docs = metrics.get_xml_metrics(
-            filtered_predictions,
-            filtered_labels,
-            self.cfg['k_list'],
-            self.cfg['loss_function'],
-            self.cfg['threshold'],
-        )
-
-        # Gather metrics for the global evaluation
-        print(f"> Results on the {split} set")
-        for metric_name, metric_value in metrics_global.items():
-            new_row_dict = {
-                'model': self.cfg['method'],
-                'task': self.cfg['all_tasks_key'],
-                'finetuning': eval_finetuning,
-                'metric': metric_name,
-                'value': metric_value,
-            }
-            self.metrics_handler[f"eval_{split}"].add_row(new_row_dict)
-            print(f">> {metric_name} -> {metric_value}")
-
-        # Compute the metrics per level at the final evaluation
-        level_metrics_handler = utils.MetricsHandler(columns=['model', 'level', 'finetuning', 'metric', 'value'], output_path=self.cfg['paths'][f"{split}_level_metrics"])
-        level_metrics = metrics.get_metrics_per_level(
-            all_predictions,
-            all_complete_labels,
-            self.cfg['k_list'],
-            self.cfg['taxonomy'],
-            self.cfg['loss_function'],
-            self.cfg['threshold'],
-        )
-        # Aggregate level metrics
-        for level, metrics_dict in level_metrics.items():
-            print(f"\n>> Metrics at level {level}")
-            for metric_name, metric_value in metrics_dict.items():
-                new_row_dict = {
-                    'model': self.cfg['method'],
-                    'level': level,
-                    'finetuning': eval_finetuning,
-                    'metric': metric_name,
-                    'value': metric_value,
-                }
-                level_metrics_handler.add_row(new_row_dict)
-                print(f">>> {metric_name} -> {metric_value}")
-
-
-        # 2. Tasks evaluation
-        for task_id, (batched_input, batched_labels, task_relevant_classes) in enumerate(tqdm(self.dataloaders[f"tasks_{split}"], leave=False)):
+        for task_id, (batched_input, batched_labels, single_relevant_classes) in enumerate(tqdm(self.dataloaders[f"tasks_{split}"], leave=False)):
             # Aggregate batched data (3D) to un-batched data (2D)
             input_data = torch.vstack(batched_input)
             labels = []
+            relevant_classes = []
             for labels_in_batch in batched_labels:
                 for label_sample in labels_in_batch:
                     labels.append(label_sample)
+                    relevant_classes.append(single_relevant_classes)
 
             # Compute predictions
-            xml = CustomXMLHolder(text_batch=input_data, task_id=task_id, beam_parameter=10, tamlec=self.model, proba_operator="MAX_PROBA")
-            predictions, scores = xml.run_predictions(batch_size=256)
+            xml = CustomXMLHolder(text_batch=input_data, task_id=task_id, beam_parameter=10, tamlec=self.model)
+            predictions, _scores = xml.run_predictions(batch_size=128)
 
-            # Transform predictions and labels into one-hot encoding
-            all_predictions = []
-            all_complete_labels = []
-            for pred, score, label in zip(predictions, scores, labels):
-                assert len(pred) == len(score)
-                pred = torch.tensor(pred)
-                score = torch.tensor(score)
-                label = torch.tensor(label)
-                # +1 as we have a <PAD> token for the labels
-                pred_sample = torch.zeros(self.cfg['taxonomy'].n_nodes+1, dtype=torch.float64)
-                pred_sample.scatter_(dim=0, index=pred, src=score)
-                assert pred_sample[-1] == 0.
-                all_predictions.append(pred_sample)
-                # +1 as we have a <PAD> token for the labels
-                label_sample = torch.zeros(self.cfg['taxonomy'].n_nodes+1, dtype=torch.float64)
-                label_sample.scatter_(0, label, 1.)
-                assert label_sample[-1] == 0.
-                all_complete_labels.append(label_sample)
+            # To save stuff later
+            all_predictions.append(predictions)
+            all_complete_labels.append(labels)
+            all_relevant_classes.append(relevant_classes)
 
-            # Aggregate and filter predictions and labels
-            all_predictions = torch.stack(all_predictions, dim=0)
-            all_predictions = all_predictions[:, task_relevant_classes]
-            all_complete_labels = torch.stack(all_complete_labels, dim=0)
-            all_complete_labels = all_complete_labels[:, task_relevant_classes]
+            # Compute the metrics
+            all_results = []
+            for star_input in zip(predictions, labels, relevant_classes):
+                all_results.append(self.doc_metrics(*star_input))
 
-            # Compute metrics
-            metrics_task, _n_docs = metrics.get_xml_metrics(
-                all_predictions,
-                all_complete_labels,
-                self.cfg['k_list'],
-                self.cfg['loss_function'],
-                self.cfg['threshold'],
-            )
+            # Aggregate predictions
+            n_docs_per_metric = {}
+            task_metrics = {}
+            for metric_dict in all_results:
+                for metric_name, metric_value in metric_dict.items():
+                    try:
+                        task_metrics[metric_name].append(metric_value)
+                        n_docs_per_metric[metric_name] += 1 
+                    except KeyError:
+                        task_metrics[metric_name] = [metric_value]
+                        n_docs_per_metric[metric_name] = 1
 
             # Average over documents and save for global aggregation
-            for metric_name, metric_value in metrics_task.items():
+            for metric_name, metric_values in task_metrics.items():
+                mean_val = np.mean(metric_values)
                 new_row_dict = {
                     'model': self.cfg['method'],
                     'task': task_id,
                     'finetuning': eval_finetuning,
                     'metric': metric_name,
-                    'value': metric_value,
+                    'value': mean_val,
                 }
                 self.metrics_handler[f"eval_{split}"].add_row(new_row_dict)
+                try:
+                    all_metrics[metric_name].append(mean_val)
+                    n_docs_per_task[metric_name].append(n_docs_per_metric[metric_name])
+                except KeyError:
+                    all_metrics[metric_name] = [mean_val]
+                    n_docs_per_task[metric_name] = [n_docs_per_metric[metric_name]]
+
+        # Compute the global metrics (weighted average over tasks)
+        print(f"> Results on the {split} set")
+        for metric_name in all_metrics.keys():
+            mean_val = np.average(all_metrics[metric_name], weights=n_docs_per_task[metric_name])
+            new_row_dict = {
+                'model': self.cfg['method'],
+                'task': self.cfg['all_tasks_key'],
+                'finetuning': eval_finetuning,
+                'metric': metric_name,
+                'value': mean_val,
+            }
+            self.metrics_handler[metrics_handler].add_row(new_row_dict)
+            print(f">> {metric_name} -> {mean_val}")
+
+        if save_pred:
+            torch.save(all_relevant_classes, self.cfg['paths'][f"{split}_relevant_labels"])
+            if eval_finetuning:
+                torch.save(all_predictions, self.cfg['paths'][f"{split}_predictions_finetuned"])
+                torch.save(all_complete_labels, self.cfg['paths'][f"{split}_labels_finetuned"])
+            else:
+                torch.save(all_predictions, self.cfg['paths'][f"{split}_predictions"])
+                torch.save(all_complete_labels, self.cfg['paths'][f"{split}_labels"])
+
+
+    def doc_metrics(self, prediction, label_list, relevant_classes):
+        metrics_document = {}
+        # Take only predictions from labels that are appearing in this task
+        doc_pred = []
+        for class_idx in prediction:
+            if class_idx in relevant_classes:
+                doc_pred.append(class_idx)
+        # Also filter only relevant labels
+        filtered_labels = [label for label in label_list if label in relevant_classes]
+
+        # Compute the metrics
+        for k in self.cfg['k_list']:
+            if len(filtered_labels) < k: continue
+            # Compute precision@k
+            precision = 0
+            for pred in doc_pred[:k]:
+                if pred in filtered_labels:
+                    precision += 1
+            metrics_document[f"precision@{k}"] = precision / k
+
+            # Compute rankedsum@k
+            ranked = []
+            for rank, pred in enumerate(doc_pred):
+                if pred in filtered_labels:
+                    ranked.append(rank+1)
+            metrics_document[f"rankedsum@{k}"] = ranked[k-1]
+
+            # Compute ndcg@k
+            metrics_document[f"ndcg@{k}"] = metrics.ndcg_k_hector(doc_pred, filtered_labels, k=k)
+
+        return metrics_document

@@ -24,8 +24,8 @@ model_name = {
 
 # Set the task for the fewshot experiment
 fewshot_task = {
-    'eurlex': 159,
-    'magcs': 7,
+    'eurlex': 120,
+    'magcs': 6,
     'pubmed': 5,
 }
 
@@ -33,9 +33,9 @@ fewshot_task = {
 batch_size = {
     
     'tamlec': {
-        'eurlex': 64,
-        'magcs': 64,
-        'pubmed': 40,
+        'eurlex': 16,
+        'magcs': 32,
+        'pubmed': 32,
         'oatopics': 64,
         'oaconcepts': 40,
     },
@@ -65,8 +65,7 @@ patience = {
 class Experiment:
     def __init__(self, cfg):
         self.cfg = cfg
-
-        assert self.cfg['method'] =='tamlec' , f"{self.cfg['method']} not available, choose 'tamlec'"
+        self.cfg['method'] = 'tamlec'
 
         # Create all paths
         # Output path set for the experiment

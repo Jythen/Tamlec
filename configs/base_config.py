@@ -7,10 +7,10 @@ from pathlib import Path
 from misc.experiment import Experiment
 
 cfg = {
-    # ['eurlex', 'magcs', 'pubmed', 'oatopics', 'oaconcepts']
+    # ['eurlex', 'magcs', 'pubmed']
     'dataset_path': Path("datasets/magcs"),
-	'output_path': Path("output"),
-	# Experiment name, better not to change
+    'output_path': Path("output"),
+    # Experiment name, better not to change
     'exp_name': Path(__file__),
     'device': 'cuda:0',
     'learning_rate': 5e-5,
@@ -24,8 +24,6 @@ cfg = {
     # Method to used to sample support and query sets
     # ['standard', 'min_including']
     'sampling_strategy': 'standard',
-    # Only used in maml, number of optimization steps per task
-    'n_optim_steps': 5,
     # k to evaluate in the metrics for the final evaluation
     'k_list': list(range(1, 21)),
     # While training only, not final evaluation
@@ -36,8 +34,8 @@ cfg = {
         'loss_smoothing': 1e-2,
         'width_adaptive': True,
         'decoder_adaptative': 1,
-        'tasks_size': False,
-        'freeze': False,
+        'tasks_size': True,
+        'freeze': True,
         'with_bias': True,
     },
 }

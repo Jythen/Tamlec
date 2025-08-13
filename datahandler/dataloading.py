@@ -183,7 +183,6 @@ def load_data(cfg):
     tasks_test_loader = DataLoader(tasks_test_set, sampler=test_sampler, collate_fn=test_sampler.collate_hector_tamlec(seed=16))
    
 
-    # protonet, maml and bdc do not have global datasets
 
     global_train_set = datasets.GlobalDataset(global_indices['train'], global_relevant_labels, one_hot_labels, cfg, train_dataset=True)
     global_val_set = datasets.GlobalDataset(global_indices['val'], global_relevant_labels, one_hot_labels, cfg, train_dataset=False)
@@ -396,7 +395,7 @@ def data_split(documents, labels_data, cfg):
     # Each sub-tree will be considered as a task
     subtrees_to_keep = [node for node in taxonomy.level_to_labels[level] if node not in taxonomy.leaves]
     # Remove sub-trees that have only one leaf, i.e. it is a straight line from root to leaf
-    # subtrees_to_keep = [subtree_root for subtree_root in subtrees_to_keep if len([node for node in taxonomy.all_children(subtree_root) if node in taxonomy.leaves]) > 1]
+    subtrees_to_keep = [subtree_root for subtree_root in subtrees_to_keep if len([node for node in taxonomy.all_children(subtree_root) if node in taxonomy.leaves]) > 1]
     # Sorted to make sure sub-trees have always the same order
     subtrees_to_keep = sorted(subtrees_to_keep)
     print(f"> Possible sub-trees {len(subtrees_to_keep)} with root on level {level}")
