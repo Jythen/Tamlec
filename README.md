@@ -41,13 +41,10 @@ This section details the various available options from the `base_config.py` fil
 - **seq_length**: Length of the input sequence, i.e. the number of tokens in one input sample
 - **voc_size**: (Maximum) Size of the vocabulary
 - **tokenization_mode**: What method to use to tokenize the texts, either `word`, `bpe`, `unigram`
-- **n_shot**: Number of samples to draw per class in the support set, only for the few-shot methods
-- **n_query**: Number of samples in the query set, only for the few-shot methods
-- **sampling_strategy**: What sampling method is used to sample the support and query sets for the few-shot methods, either `standard` or `min_including`
 - **k_list**: List of *@k* on which to evaluate the metrics for the final evaluation
 - **k_list_eval_perf**: List of *@k* on which to evaluate the metrics during the training process
+- **tamlec_params**: Various parameters for TAMLEC method
 - **fewshot_exp**: If we want to run the few-shot experiments
-- **tamlec_params**: Various parameters for TAMLEC methods
 
 Other, specific algorithms parameters, such as in `fastxml` and `parabel`, can be modified for the given method under the `algorithms` folder.
 

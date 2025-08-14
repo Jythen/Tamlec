@@ -21,15 +21,11 @@ cfg = {
     # How to tokenize the texts
     # ['word', 'bpe', 'unigram']
     'tokenization_mode': 'word',
-    # Method to used to sample support and query sets
-    # ['standard', 'min_including']
-    'sampling_strategy': 'standard',
     # k to evaluate in the metrics for the final evaluation
     'k_list': list(range(1, 21)),
     # While training only, not final evaluation
     'k_list_eval_perf': [1,2,3,5],
-    # Launch a fewshot experiment
-    'fewshot_exp': False,
+    # Various parameters specific to Tamlec
     'tamlec_params': {
         'loss_smoothing': 1e-2,
         'width_adaptive': True,
@@ -38,6 +34,8 @@ cfg = {
         'freeze': True,
         'with_bias': True,
     },
+    # Launch a fewshot experiment
+    'fewshot_exp': False,
 }
 
 if __name__ == '__main__':

@@ -309,18 +309,7 @@ class EarlyStopping:
         self.metrics_dict = {}
         self.best_epoch = 0
         self.method_to_min_epoch = {
-            'protonet': 30,
-            'maml': 20,
-            'match': 5,
-            'xmlcnn': 5,
-            'attentionxml': 5,
-            'hector': 5,
             'tamlec': 5,
-            'siamese': 15,
-            'bdc': 15,
-            'lightxml': 5,
-            'cascadexml': 5,
-            'parabel': 5,
         }
         self.min_epoch = self.method_to_min_epoch[self.cfg['method']]
 

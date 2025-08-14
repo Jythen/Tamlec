@@ -178,9 +178,9 @@ def load_data(cfg):
     
     resampled_train_set = datasets.ResampledTasksDataset(tasks_indices['train'], tasks_relevant_labels, cfg)
     new_sampler = SubtreeSampler(resampled_train_set, cfg=cfg, batch_size=cfg['batch_size_train'])
-    tasks_train_loader = DataLoader(resampled_train_set, sampler=new_sampler, collate_fn=new_sampler.collate_hector_tamlec(seed=None))
-    tasks_val_loader = DataLoader(tasks_val_set, sampler=val_sampler, collate_fn=val_sampler.collate_hector_tamlec(seed=16))
-    tasks_test_loader = DataLoader(tasks_test_set, sampler=test_sampler, collate_fn=test_sampler.collate_hector_tamlec(seed=16))
+    tasks_train_loader = DataLoader(resampled_train_set, sampler=new_sampler, collate_fn=new_sampler.collate_tamlec(seed=None))
+    tasks_val_loader = DataLoader(tasks_val_set, sampler=val_sampler, collate_fn=val_sampler.collate_tamlec(seed=16))
+    tasks_test_loader = DataLoader(tasks_test_set, sampler=test_sampler, collate_fn=test_sampler.collate_tamlec(seed=16))
    
 
 

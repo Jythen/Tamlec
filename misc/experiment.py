@@ -159,7 +159,6 @@ class Experiment:
        
 
         assert self.cfg['tokenization_mode'] in ['word', 'bpe', 'unigram'], f"{self.cfg['tokenization_mode']} should be ['word', 'bpe', 'unigram']"
-        assert self.cfg['sampling_strategy'] in ['standard', 'min_including'], f"{self.cfg['sampling_strategy']} should be ['standard', 'min_including']"
 
 
 
